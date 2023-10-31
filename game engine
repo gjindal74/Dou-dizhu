@@ -1,0 +1,574 @@
+;; ***
+;; Data Definitions
+;; ***
+
+;; A Card is (anyof 3 4 5 6 7 8 9 10 'Jack 'Queen 'King 'Ace 2 'Black 'Red)
+
+;; A Hand is a (listof Card) where the values of Card are sorted in DouDizhu order
+;; 3 < 4 < 5 < 6 < 7 < 8 < 9 < 10 < 'Jack < 'Queen < 'King < 'Ace < 2 < 'Black < 'Red
+
+
+;; ***
+;; Functions from A04, in order of the question from which they originate
+;; ***
+
+;; (remove-duplicates any-list) produces any-list but only with the last occurence of every element
+;; remove-duplicates: (listof Any) -> (listof Any)
+(define (remove-duplicates any-list)
+  (cond
+    [(empty? any-list) empty]
+    [(member? (first any-list) (rest any-list)) ; check if the element is already in any-list
+     (remove-duplicates (rest any-list))] ; skip it
+    [else (cons (first any-list)
+                (remove-duplicates (rest any-list)))]))
+
+
+;; (card<? card-1 card-2) checks if card-1 is strictly less than card-2 in Dou Dizhu order
+;; card<?: Card Card -> Bool
+(define (card<? card-1 card-2)
+  (< (card->nat card-1) (card->nat card-2)))
+
+
+;; (card->nat card) produces a mapped value of card to a Nat, for ordering purposes
+;; card->nat: Card -> Nat
+(define (card->nat card)
+  (cond
+    [(and (number? card) (= card 2)) 15]
+    [(number? card) card]
+    [(symbol=? card 'Jack) 11]
+    [(symbol=? card 'Queen) 12]
+    [(symbol=? card 'King) 13]
+    [(symbol=? card 'Ace) 14]
+    [(symbol=? card 'Black) 16]
+    [(symbol=? card 'Red) 17]))
+
+
+;; (remove-one-of-each card-list) produces card-list with one occurence of each appearing card removed
+;; remove-one-of-each: (listof Card) -> (listof Card)
+;; Requires: card-list is sorted in Dou Dizhu order
+(define (remove-one-of-each card-list)
+  (cond
+    [(empty? card-list) empty]
+    ;; check if the Card has duplicates in the rest of card-list
+    [(member? (first card-list) (rest card-list))
+     (cons (first card-list) (remove-one-of-each (rest card-list)))]
+    ;; only remove the last appearance of each Card to ensure only 1 is removed
+    [else (remove-one-of-each (rest card-list))]))
+
+
+;; (find-kind of-a-kind card-list) produces a list of Cards that occur in card-list at least of-a-kind
+;; times
+;; find-kind: Nat (listof Card) -> (listof Card)
+;; Requires: of-a-kind must be >= 1
+;;           card-list is sorted in Dou Dizhou order
+(define (find-kind of-a-kind card-list)
+  (remove-duplicates (find-kind/remover of-a-kind card-list)))
+
+
+;; (find-kind/remover of-a-kind card-list) produces card-list with each Card removed
+;; [1 less than of-a-kind] times from it
+;; find-kind/remover: Nat (listof Card) -> (listof Card)
+;; Requires: of-a-kind must be > 0
+;;           card-list is sorted in Dou Dizhou order
+(define (find-kind/remover of-a-kind card-list)
+  (cond
+    [(= of-a-kind 1) card-list]
+    [else (remove-one-of-each (find-kind/remover (sub1 of-a-kind) card-list))]))
+
+
+;; ***
+;; Commonly Used Functions
+;; ***
+;; (straight? hand straight-length) checks if the first Card in hand produces a straight of length
+;; straight-length
+(check-expect (straight? (list 3 4 5 6 7 8 10) 6) true)
+(check-expect (straight? (list 3 4 5 6 7 8 10) 7) false)
+
+;; straight?: Hand Nat -> Bool
+;; Requires: hand must have no duplicates
+;;           (no requirement on straight-length as this is also used for straight pairs and airplanes)
+(define (straight? hand straight-length)
+  (cond
+    [(< (length hand) straight-length) false] ; checks if there aren't enough cards to form a straight
+    [(= straight-length 1) true] ;; because the last Card was checked last iteration, so we're done
+    [(and (= (add1 (card->nat (first hand)))
+             (card->nat (second hand))) ; check consecutive increasing :)
+          (< (card->nat (second hand)) 15)) ; check that 2 or greater is not in the straight
+     (straight? (rest hand) (sub1 straight-length))]
+    [else false]))
+
+;; Tests:
+(check-expect (straight? (list 'Jack 'Queen 'King 'Ace '2) 5) false)
+(check-expect (straight? (list 3 4 5 6 7 8 9) 8) false)
+(check-expect (straight? (list 9 10 'Jack 'Queen 'King) 5) true)
+
+
+;; ***
+;; Predefined examples
+;; ***
+
+(define hand-1 (list 3 3 3 5 6 7 8 9 9 10 10 10 10 'Jack 'Ace 2 'Black 'Red))
+(define hand-2 (list 4 5 6 6 6 7 7 7 8 8 8 9 'Queen 'Queen 'King 'King 'King 'King 2 2 2))
+
+
+
+;; (solos hand) produces a (listof Hand) containing every unique solo card that exists in hand
+;; Examples:
+(check-expect (solos hand-1)
+              (list (list 3) (list 5) (list 6) (list 7) (list 8) (list 9) (list 10)
+                    (list 'Jack) (list 'Ace) (list 2) (list 'Black) (list 'Red)))
+(check-expect (solos hand-2)
+              (list (list 4) (list 5) (list 6) (list 7) (list 8) (list 9)
+                    (list 'Queen) (list 'King) (list 2)))
+
+;; solos: Hand -> (listof Hand)
+(define (solos hand)
+  (remove-duplicates (solos/generator hand)))
+
+;; Tests:
+(check-expect (solos (list 'Jack 'Queen 'King 'Ace 2 'Black 'Red))
+              (list (list 'Jack) (list 'Queen) (list 'King) (list 'Ace)
+                    (list 2) (list 'Black) (list 'Red)))
+(check-expect (solos (list 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3))
+              (list (list 3)))
+
+
+;; (solos/generator hand) produces a (listof Hand) with solos generated from each Card in hand
+(check-expect (solos/generator hand-1)
+              (list (list 3) (list 3) (list 3) (list 5) (list 6) (list 7) (list 8) (list 9) (list 9)
+                    (list 10) (list 10) (list 10) (list 10) (list 'Jack) (list 'Ace) (list 2)
+                    (list 'Black) (list 'Red)))
+
+;; solos/generator: Hand -> (listof Hand)
+(define (solos/generator hand)
+  (cond
+    [(empty? hand) empty]
+    [else (cons (list (first hand))
+                (solos/generator (rest hand)))]))
+;; (pairs hand) produces a (listof Hand) containing every unique pair that exists in hand
+;; Examples:
+(check-expect (pairs hand-1)
+              (list (list 3 3) (list 9 9) (list 10 10)))
+(check-expect (pairs hand-2)
+              (list (list 6 6) (list 7 7) (list 8 8)
+                    (list 'Queen 'Queen) (list 'King 'King) (list 2 2)))
+
+;; pairs: Hand -> (listof Hand)
+(define (pairs hand)
+  (remove-duplicates (pairs/generator (find-kind 2 hand))))
+
+;; Tests:
+(check-expect (pairs (list 5 5 5 5 5 5 5 5))
+              (list (list 5 5)))
+(check-expect (pairs (list 5 7 9 10 'Ace))
+              empty)
+
+(check-expect (pairs (list 5 7 7 9 10 'Ace 2 2))
+              (list (list 7 7) (list 2 2)))
+
+
+;; (pairs/generator hand) produces a (listof Hand) with pairs generated from each Card in hand
+;; Example:
+(check-expect (pairs/generator hand-1)
+              (list (list 3 3) (list 3 3) (list 3 3) (list 5 5) (list 6 6) (list 7 7) (list 8 8)
+                    (list 9 9) (list 9 9) (list 10 10) (list 10 10) (list 10 10) (list 10 10)
+                    (list 'Jack 'Jack) (list 'Ace 'Ace) (list 2 2) (list 'Black 'Black)
+                    (list 'Red 'Red)))
+
+;; pairs/generator: Hand -> (listof Hand)
+(define (pairs/generator hand)
+  (cond
+    [(empty? hand) empty]
+    [else (cons (list (first hand) (first hand))
+                (pairs/generator (rest hand)))]))
+;; (trios hand) produces a (listof Hand) containing every unique trio that exists in hand
+;; Examples:
+(check-expect (trios hand-1)
+              (list (list 3 3 3) (list 10 10 10)))
+(check-expect (trios hand-2)
+              (list (list 6 6 6) (list 7 7 7) (list 8 8 8) (list 'King 'King 'King) (list 2 2 2)))
+
+;; trios Hand -> (listof Hand)
+(define (trios hand)
+  (remove-duplicates (trios/generator (find-kind 3 hand))))
+
+;; Tests:
+(check-expect (trios (list 7 7 7 7 7 7 7 7 7 7 7 7 7 9 9))
+              (list (list 7 7 7)))
+(check-expect (trios (list 6 9 10 'Jack 'Jack 'Red))
+              empty)
+(check-expect (trios (list 4 4 4 5 6 7 10 10 10 10))
+              (list (list 4 4 4) (list 10 10 10)))
+
+
+;; (trios/generator hand) produces a (listof Hand) with trios generated from each Card in hand
+;; Example:
+(check-expect (trios/generator hand-1)
+              (list (list 3 3 3) (list 3 3 3) (list 3 3 3) (list 5 5 5) (list 6 6 6) (list 7 7 7)
+                    (list 8 8 8) (list 9 9 9) (list 9 9 9) (list 10 10 10) (list 10 10 10)
+                    (list 10 10 10) (list 10 10 10) (list 'Jack 'Jack 'Jack) (list 'Ace 'Ace 'Ace)
+                    (list 2 2 2) (list 'Black 'Black 'Black) (list 'Red 'Red 'Red)))
+
+;; trios/generator: Hand -> (listof Hand)
+(define (trios/generator hand)
+  (cond
+    [(empty? hand) empty]
+    [else (cons (list (first hand) (first hand) (first hand))
+                (trios/generator (rest hand)))]))
+;; This is the point I actually re-read the style guide and noted I don't explicitly need tests for my
+;; helper functions
+
+;; (sort-hands hands) produces a sorted version of hands (with duplicates removed) in this order:
+;; * increasing length first, then lexicographical order
+;; * bombs second last
+;; * rockets last
+;; Examples:
+(check-expect (sort-hands (list (list 3 3 3)
+                                (list 2 2)
+                                (list 6 6 6 6)
+                                (list 'Black 'Red)
+                                (list 3 3 3)))
+              (list (list 2 2)
+                    (list 3 3 3)
+                    (list 6 6 6 6)
+                    (list 'Black 'Red)))
+
+(check-expect (sort-hands (list (list 4 5 6 7 8 9)
+                                (list 3 3 3 4 4 4)
+                                (list 'King 'King)
+                                (list 8 8)
+                                (list 'Black 'Red)
+                                (list 'Jack 'Jack)))
+              (list (list 8 8)
+                    (list 'Jack 'Jack)
+                    (list 'King 'King)
+                    (list 3 3 3 4 4 4)
+                    (list 4 5 6 7 8 9)
+                    (list 'Black 'Red)))
+
+;; sort-hands: (listof Hand) -> (listof Hand)
+(define (sort-hands hands)
+  (cond
+    [(empty? hands) empty]
+    [else (insert-hands (first hands)
+                        (sort-hands (rest hands)))]))
+
+;; Tests:
+(check-expect
+ (sort-hands (list (list 'Jack 'Queen 'King) (list 3 3 3) (list 4 4)
+                   (list 'Black 'Red) (list 4 4) (list 5 5 5)
+                   (list 3 4 5) (list 3 3 3)))
+ (list (list 4 4) (list 3 3 3) (list 3 4 5) (list 5 5 5)
+       (list 'Jack 'Queen 'King) (list 'Black 'Red)))
+
+
+;; (insert-hands hand hands) produces hands with hand sorted into it according to the order described
+;; in (sort-hands), unless hand is already in hands, in which case it simply produces hands
+;; Examples:
+(check-expect (insert-hands (list 6 7 8 9 10)
+                            (list (list 8 8)
+                                  (list 'Jack 'Jack)
+                                  (list 'King 'King)
+                                  (list 3 3 3 4 4 4)
+                                  (list 4 5 6 7 8 9)
+                                  (list 'Black 'Red)))
+              (list (list 8 8)
+                    (list 'Jack 'Jack)
+                    (list 'King 'King)
+                    (list 6 7 8 9 10)
+                    (list 3 3 3 4 4 4)
+                    (list 4 5 6 7 8 9)
+                    (list 'Black 'Red)))
+(check-expect (insert-hands (list 3 3 3)
+                            (list (list 3 3 3)
+                                  (list 6 6 6)
+                                  (list 9 9 9)))
+              (list (list 3 3 3)
+                    (list 6 6 6)
+                    (list 9 9 9)))
+
+;; insert-hands: Hand (listof Hand) -> (listof Hand)
+(define (insert-hands hand hands)
+  (cond
+    [(empty? hands)
+     (cons hand empty)] ; add to end
+    [(member? hand hands)
+     hands] ; don't change if hand already exists in hands
+    [(hand<? hand (first hands))
+     (cons hand hands)] ; found place to insert
+    [else
+     (cons (first hands)
+           (insert-hands hand (rest hands)))]))
+
+
+;; (hand<? hand-1 hand-2) checks if hand-1 is strictly lower in order than hand-2
+;; Examples:
+(check-expect (hand<? (list 2 3 4 5 6 7) (list 5 6 7 8 9)) false)
+(check-expect (hand<? (list 4 4 4 4) (list 10 10 10 10)) true)
+
+;; hand<?: Hand Hand -> Bool
+(define (hand<? hand-1 hand-2)
+  (cond
+    [(and (symbol? (first hand-1)) (symbol=? (first hand-1) 'Black)
+          (symbol? (second hand-1)) (symbol=? (second hand-1) 'Red))
+     false] ; hand-1 is a rocket
+    [(and (symbol? (first hand-2)) (symbol=? (first hand-2) 'Black)
+          (symbol? (second hand-2)) (symbol=? (second hand-2) 'Red))
+     true] ; hand-2 is a rocket
+    [(and (= (length hand-1) 4) ; take advantage of Hand requiring sorting (on next line)
+          (= (card->nat (first hand-1)) (card->nat (fourth hand-1)))
+          (= (length hand-2) 4)
+          (= (card->nat (first hand-2)) (card->nat (fourth hand-2))))
+     (card<? (first hand-1) (first hand-2))] ; two bombs, compare Card value
+    [(and (= (length hand-1) 4)
+          (= (card->nat (first hand-1)) (card->nat (fourth hand-1))))
+     false] ; just hand-1 is a bomb
+    [(and (= (length hand-2) 4)
+          (= (card->nat (first hand-2)) (card->nat (fourth hand-2))))
+     true] ; just hand-2 is a bomb
+    [(< (length hand-1) (length hand-2))
+     true]
+    [(= (length hand-1) (length hand-2))
+     (lexicographical-hand? hand-1 hand-2)] ; equal in length, compare lexicographical order
+    [else false]))
+
+;; Tests:
+(check-expect (hand<? (list 'Black 'Red) (list 2 2 2 2)) false)
+(check-expect (hand<? (list 2 2 2 2) (list 'Black 'Red)) true)
+(check-expect (hand<? (list 4 4 4 4) (list 'Jack 'Jack 'Jack 'Jack)) true)
+(check-expect (hand<? (list 4 4 4 4) (list 2 2 2 2)) true)
+(check-expect (hand<? (list 2 2 2 2) (list 3 4 5 6 7 8)) false)
+(check-expect (hand<? (list 3 4 5 6 7 8) (list 2 2 2 2)) true)
+(check-expect (hand<? (list 3 4 5 6 7 8) (list 3 3 3 6 6 6)) false)
+(check-expect (hand<? (list 10 10 'Jack 'Jack 'Queen 'Queen) (list 10 10 10 'Jack 'Jack 'Jack)) false)
+(check-expect (hand<? (list 10 10 10 'Jack 'Jack 'Jack) (list 10 10 'Jack 'Jack 'Queen 'Queen)) true)
+
+
+;; (lexicographical-hand? hand-1 hand-2) checks if hand-1 is strictly lexicographically lower than
+;; hand-2
+;; Examples:
+(check-expect (lexicographical-hand? (list 3 3 3) (list 6 6 6)) true)
+(check-expect (lexicographical-hand? (list 10 'Jack 'Queen 'King 'Ace) (list 5 6 7 8 9)) false)
+(check-expect (lexicographical-hand? (list 3 4 5 6 7 8) (list 3 3 4 4 5 5)) false)
+
+;; lexicographical-hand?: Hand Hand -> Bool
+;; Requires: hand-1 and hand-2 must have the same length
+(define (lexicographical-hand? hand-1 hand-2)
+  (cond
+    [(empty? hand-1) false]
+    [(card<? (first hand-1) (first hand-2)) true]
+    [else (lexicographical-hand? (rest hand-1) (rest hand-2))]))
+;; (straights hand) produces a (listof Hand) containing every unique straight that exists in hand
+;; Examples:
+(check-expect (straights hand-1)
+              (list (list 5 6 7 8 9) (list 6 7 8 9 10) (list 7 8 9 10 'Jack)
+                    (list 5 6 7 8 9 10) (list 6 7 8 9 10 'Jack) (list 5 6 7 8 9 10 'Jack)))
+(check-expect (straights hand-2)
+              (list (list 4 5 6 7 8) (list 5 6 7 8 9) (list 4 5 6 7 8 9)))
+
+;; straights: Hand -> (listof Hand)
+(define (straights hand)
+  (sort-hands (straights/recursor (remove-duplicates hand)
+                                  (length (remove-duplicates hand)))))
+
+;; Tests:
+(check-expect
+ (straights (list 3 3 3 3 4 5 6 7 8 9
+                  'Jack 'Jack 'Queen 'King 'Ace 2 2))
+ (list (list 3 4 5 6 7) (list 4 5 6 7 8) (list 5 6 7 8 9)
+       (list 3 4 5 6 7 8) (list 4 5 6 7 8 9)
+       (list 3 4 5 6 7 8 9)))
+(check-expect (straights (list 3 3 3 4 4 4 5 5 5 6 6 6))
+              empty)
+(check-expect (straights (list 3 3 3 4 4 4 5 5 5 6 6 6 7 7 7))
+              (list (list 3 4 5 6 7)))
+(check-expect (straights (list 'Jack 'Queen 'King 'Ace 2))
+              empty)
+(check-expect (straights (list 10 'Jack 'Queen 'King 'Ace 2 'Black 'Red))
+              (list (list 10 'Jack 'Queen 'King 'Ace)))
+
+
+;; (straights/recursor hand straight-length) produces an unordered (listof Hand) containing every
+;; straight of length straight-length or less that can be generated from Card values in hand
+;; (NOT the Card themselves)
+;; Note: it does so by recursively calling itself first through (sub1 straight-length) for a given
+;; hand and then through (rest hand) until hand is empty
+;; Example:
+(check-expect (straights/recursor (list 3 5 6 7 8 9 10 'Jack 'Ace 2 'Black 'Red) 6)
+              (list (list 5 6 7 8 9 10 'Jack) (list 5 6 7 8 9 10) (list 5 6 7 8 9)
+                    (list 6 7 8 9 10 'Jack) (list 6 7 8 9 10) (list 7 8 9 10 'Jack)))
+
+;; straights/recursor: Hand Nat -> (listof Hand)
+;; Requires: hand must have no duplicates
+(define (straights/recursor hand straight-length)
+  (cond
+    [(empty? hand) empty] ; end of recursion
+    [(< straight-length 5) ; no straights can be formed, move to next Card in hand
+     (straights/recursor (rest hand) (length (rest hand)))]
+    [(straight? hand straight-length)
+     (cons (straight-generator hand straight-length)
+           (straights/recursor hand (sub1 straight-length)))]
+    [else
+     (straights/recursor hand (sub1 straight-length))]))
+
+
+;; (straight-generator hand straight-length) generates a straight of length straight-length from the
+;; Card values in hand (NOT the Card themselves), starting from the first
+;; Example:
+(check-expect (straight-generator (list 4 5 6 7 8 9) 5)
+              (list 4 5 6 7 8))
+
+;; straight-generator: Hand Nat -> Hand
+;; Requires: straight-length must be >= 5
+;;           The first Card in hand must form a valid straight of length at least straight-length
+(define (straight-generator hand straight-length)
+  (cond
+    [(zero? straight-length) empty]
+    [else (cons (first hand)
+                (straight-generator (rest hand) (sub1 straight-length)))]))
+
+
+;; **
+;; ***
+
+;; (straight-pairs hand) produces a (listof Hand) containing every unique straight pair that exists
+;; in hand
+;; Examples:
+(check-expect (straight-pairs hand-1)
+              empty)
+(check-expect (straight-pairs hand-2)
+              (list (list 6 6 7 7 8 8)))
+
+;; straight-pairs: Hand -> (listof Hand)
+(define (straight-pairs hand)
+  (sort-hands (straight-pairs/recursor (find-kind 2 hand)
+                                       (length (find-kind 2 hand)))))
+
+;; Tests:
+(check-expect
+ (straight-pairs
+  (list 3 3 3 4 5 5 5 6 6 6 6 7 7 7 8 8 9 'Ace 'Ace))
+ (list (list 5 5 6 6 7 7) (list 6 6 7 7 8 8)
+       (list 5 5 6 6 7 7 8 8)))
+(check-expect (straight-pairs (list 3 3 3 3 4 4 4 4))
+              empty)
+(check-expect (straight-pairs (list 3 3 3 3 4 4 4 4 5 5 5 5))
+              (list (list 3 3 4 4 5 5)))
+(check-expect (straight-pairs (list 3 3 3 3 4 4 4 4 5 5 5 5 6 6 6))
+              (list (list 3 3 4 4 5 5) (list 4 4 5 5 6 6) (list 3 3 4 4 5 5 6 6)))
+(check-expect (straight-pairs (list 'King 'King 'Ace 'Ace 2 2 'Black 'Red))
+              empty)
+
+
+;; (straight-pairs/recursor hand straight-length) produces an unordered (listof Hand) containing every
+;; straight pair of length straight-length or less that can be generated from Card values in hand
+;; (NOT the Card themselves)
+;; Example:
+(check-expect (straight-pairs/recursor (list 6 7 8 'Jack 'Queen 'King 2) 3)
+              (list (list 6 6 7 7 8 8) (list 'Jack 'Jack 'Queen 'Queen 'King 'King)))
+
+;; straight-pairs/recursor: Hand Nat -> (listof Hand)
+;; Requires: hand must have no duplicates
+(define (straight-pairs/recursor hand straight-length)
+  (cond
+    [(empty? hand) empty] ; end of recursion
+    [(< straight-length 3) ; no "straights" can be formed, move to next Card in hand
+     (straight-pairs/recursor (rest hand) (length (rest hand)))]
+    [(straight? hand straight-length)
+     (cons (straight-pair-generator hand straight-length)
+           (straight-pairs/recursor hand (sub1 straight-length)))]
+    [else
+     (straight-pairs/recursor hand (sub1 straight-length))]))
+
+
+;; (straight-pair-generator hand straight-length) generates a straight pair of length straight-length
+;; from the Card values in hand (NOT the Card themselves), starting from the first
+;; first Card in hand
+(check-expect (straight-pair-generator (list 4 5 6 7 8 9) 5)
+              (list 4 4 5 5 6 6 7 7 8 8))
+
+;; straight-pair-generator: Hand Nat -> Hand
+;; Requires: straight-length must be >= 3
+;;           The first Card in hand must form a "straight" of length at least straight-length
+(define (straight-pair-generator hand straight-length)
+  (cond
+    [(zero? straight-length) empty]
+    [else (cons (first hand)
+                (cons (first hand)
+                      (straight-pair-generator (rest hand) (sub1 straight-length))))]))
+
+
+;; ***
+
+;; (airplanes hand) produces a (listof Hand) containing every unique airplane that exists in hand
+(check-expect (airplanes (list 3 3 3 4 4 4 4 5 5 5 6 6))
+              (list (list 3 3 3 4 4 4) (list 4 4 4 5 5 5) (list 3 3 3 4 4 4 5 5 5)))
+(check-expect (airplanes hand-2)
+              (list (list 6 6 6 7 7 7) (list 7 7 7 8 8 8) (list 6 6 6 7 7 7 8 8 8)))
+
+;; airplanes: Hand -> (listof Hand)
+(define (airplanes hand)
+  (sort-hands (airplanes/recursor (find-kind 3 hand)
+                                  (length (find-kind 3 hand)))))
+
+;; Tests:
+(check-expect
+ (airplanes
+  (list 'Queen 'Queen 'Queen 'Queen
+        'King 'King 'King
+        'Ace 'Ace 'Ace 2 2 2))
+ (list (list 'Queen 'Queen 'Queen 'King 'King 'King)
+       (list 'King 'King 'King 'Ace 'Ace 'Ace)
+       (list 'Queen 'Queen 'Queen 'King 'King 'King
+             'Ace 'Ace 'Ace)))
+(check-expect (airplanes (list 3 3 3 3 4 4 5 5 5 5))
+              empty)
+(check-expect (airplanes (list 8 8 8 9 10 10 10 'Jack 'Jack 'Jack 'Queen 'Queen 'Queen))
+              (list (list 10 10 10 'Jack 'Jack 'Jack) (list 'Jack 'Jack 'Jack 'Queen 'Queen 'Queen)
+                    (list 10 10 10 'Jack 'Jack 'Jack 'Queen 'Queen 'Queen)))
+(check-expect (airplanes (list 'King 'King 'King 'Ace 'Ace 'Ace 2 2 2))
+              (list (list 'King 'King 'King 'Ace 'Ace 'Ace)))
+
+
+;; (airplanes/recursor hand airplane-length) produces an unordered (listof Hand) containing every
+;; airplane of length airplane-length or less that can be generated from Card values in hand
+;; (NOT the Card themselves)
+(check-expect (airplanes/recursor (list 6 7 8 'Jack 'Queen 'King 2) 3)
+              (list (list 6 6 6 7 7 7 8 8 8) (list 6 6 6 7 7 7) (list 7 7 7 8 8 8)
+                    (list 'Jack 'Jack 'Jack 'Queen 'Queen 'Queen 'King 'King 'King)
+                    (list 'Jack 'Jack 'Jack 'Queen 'Queen 'Queen)
+                    (list 'Queen 'Queen 'Queen 'King 'King 'King)))
+
+;; airplanes/recursor: Hand Nat -> (listof Hand)
+;; Requires: hand must have no duplicates
+(define (airplanes/recursor hand airplane-length)
+  (cond
+    [(empty? hand) empty] ; end of recursion
+    [(< airplane-length 2) ; no "straights" can be formed, move to next Card in hand
+     (airplanes/recursor (rest hand) (length (rest hand)))]
+    [(straight? hand airplane-length)
+     (cons (airplane-generator hand airplane-length)
+           (airplanes/recursor hand (sub1 airplane-length)))]
+    [else
+     (airplanes/recursor hand (sub1 airplane-length))]))
+
+
+;; (airplane-generator hand airplane-length) generates an airplane of length airplane-length from the
+;; Card values in hand (NOT the Card themselves), starting from the first
+(check-expect (airplane-generator (list 4 5 6 7 8 9) 5)
+              (list 4 4 4 5 5 5 6 6 6 7 7 7 8 8 8))
+
+;; airplane-generator: Hand Nat -> Hand
+;; Requires: airplane-length must be >= 2
+;;           The first Card in hand must form a "straight" of length at least airplane-length
+(define (airplane-generator hand airplane-length)
+  (cond
+    [(zero? airplane-length) empty]
+    [else (cons (first hand)
+                (cons (first hand)
+                      (cons (first hand)
+                            (airplane-generator (rest hand) (sub1 airplane-length)))))]))
+
+
+;;............................................................................................
+;;............................................................................................
