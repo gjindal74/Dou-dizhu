@@ -2,7 +2,6 @@
 ;; about the language level of this file in a form that our tools can easily process.
 #reader(lib "htdp-intermediate-lambda-reader.ss" "lang")((modname engine) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f () #t)))
 (require "players.rkt")
-;;Q 3
 (define hand0 '(3 3 3 3 4 5 6 7 7 7 9 9 Jack Jack Queen King 2 2 Black Red))
 (define hand1 '(4 4 4 5 5 6 6 7 8 9 10 Jack Queen King Ace 2 2))
 (define hand2 '(5 6 8 8 8 9 10 10 10 Jack Queen Queen King King Ace Ace Ace))
